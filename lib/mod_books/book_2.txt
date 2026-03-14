@@ -1,0 +1,18 @@
+《Flutter开发指南》
+作者：张伟
+
+Flutter是Google推出的跨平台移动应用开发框架，使用Dart语言编写。
+
+Flutter的主要特点包括：
+- 热重载功能，实时查看代码更改效果
+- 丰富的组件库，Material Design和Cupertino风格
+- 高性能渲染引擎，流畅的用户体验
+- 一次编写，多平台运行
+
+Widget是Flutter的核心概念。一切都是Widget，从简单的文本到复杂的布局。
+
+StatelessWidget和StatefulWidget是两种主要的Widget类型。StatelessWidget用于静态内容，而StatefulWidget用于需要动态更新的内容。
+
+Flutter的布局系统非常灵活，使用Row、Column、Stack等容器来组织界面元素。
+
+学习Flutter的最佳方式是通过实践。从简单的Hello World应用开始，逐步构建更复杂的项目。
