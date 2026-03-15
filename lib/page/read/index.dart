@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:otaku_reader/mod_books/mod_books.dart';
 import 'package:otaku_reader/services/api_service.dart';
+import 'package:otaku_reader/services/theme_service.dart';
 
 class ReadPage extends StatefulWidget {
   final Book? book;
@@ -15,13 +16,14 @@ class _ReadPageState extends State<ReadPage> {
   String _content = '';
   int _currentPage = 0;
   double _fontSize = 16.0;
-  Color _backgroundColor = Colors.white;
-  Color _textColor = Colors.black;
+  Color _backgroundColor = ThemeService.lightBackground;
+  Color _textColor = ThemeService.getTextColor(ThemeService.lightBackground);
   bool _isOnlineMode = false;
   String? _novelId;
   String? _chapterId;
   Chapter? _currentChapter;
   final ScrollController _scrollController = ScrollController();
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -66,6 +68,7 @@ class _ReadPageState extends State<ReadPage> {
   Future<void> _loadLocalBook(Book book) async {
     try {
       final content = await BookManager.loadBookContent(book.contentPath);
+      // 使用单个setState减少界面重绘
       setState(() {
         _content = content;
       });
@@ -77,16 +80,28 @@ class _ReadPageState extends State<ReadPage> {
   }
 
   Future<void> _loadOnlineChapter(String novelId, String chapterId) async {
+    if (_isLoading) return; // 防止重复加载
+    
+    setState(() {
+      _isLoading = true;
+    });
+    
     try {
       final chapter = await ApiService.getChapter(novelId, chapterId);
+      // 使用单个setState减少界面重绘
       setState(() {
+        _isLoading = false;
         _currentChapter = chapter;
         _content = chapter.content;
         _currentPage = chapter.chapterNumber - 1;
       });
-      _scrollToTop();
+      // 延迟滚动操作，避免与setState冲突
+      Future.delayed(Duration(milliseconds: 50), () {
+        _scrollToTop();
+      });
     } catch (e) {
       setState(() {
+        _isLoading = false;
         _content = '加载章节失败: $e';
       });
     }
@@ -119,7 +134,10 @@ class _ReadPageState extends State<ReadPage> {
           _currentPage++;
           _updateReadingProgress();
         });
-        _scrollToTop();
+        // 延迟滚动操作，避免与setState冲突
+        Future.delayed(Duration(milliseconds: 50), () {
+          _scrollToTop();
+        });
       }
     }
   }
@@ -137,19 +155,22 @@ class _ReadPageState extends State<ReadPage> {
           _currentPage--;
           _updateReadingProgress();
         });
-        _scrollToTop();
+        // 延迟滚动操作，避免与setState冲突
+        Future.delayed(Duration(milliseconds: 50), () {
+          _scrollToTop();
+        });
       }
     }
   }
 
   void _toggleTheme() {
     setState(() {
-      if (_backgroundColor == Colors.white) {
+      if (_backgroundColor == ThemeService.lightBackground) {
         _backgroundColor = Colors.black;
         _textColor = Colors.white;
       } else {
-        _backgroundColor = Colors.white;
-        _textColor = Colors.black;
+        _backgroundColor = ThemeService.lightBackground;
+        _textColor = ThemeService.getTextColor(ThemeService.lightBackground);
       }
     });
   }
@@ -180,13 +201,13 @@ class _ReadPageState extends State<ReadPage> {
               icon: Icon(Icons.arrow_back),
               label: Text('上一章'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
+                 backgroundColor: ThemeService.buttonColor,
+                 foregroundColor: Colors.white,
+                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                 shape: RoundedRectangleBorder(
+                   borderRadius: BorderRadius.circular(8),
+                 ),
+               ),
             ),
           ),
           SizedBox(width: 16),
@@ -196,7 +217,7 @@ class _ReadPageState extends State<ReadPage> {
               icon: Icon(Icons.arrow_forward),
               label: Text('下一章'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
+                backgroundColor: ThemeService.buttonColor,
                 foregroundColor: Colors.white,
                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                 shape: RoundedRectangleBorder(
@@ -285,10 +306,19 @@ class _ReadPageState extends State<ReadPage> {
         return Scaffold(
           appBar: AppBar(
             title: Text('阅读'),
-            backgroundColor: Colors.blue.shade700,
+            backgroundColor: ThemeService.appBarColor,
+            foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
           ),
-          body: Center(
-            child: Text('正在加载章节...'),
+          body: Container(
+            color: ThemeService.lightBackground,
+            child: Center(
+              child: Text(
+                '正在加载章节...',
+                style: TextStyle(
+                  color: ThemeService.getTextColor(ThemeService.lightBackground),
+                ),
+              ),
+            ),
           ),
         );
       }
@@ -299,10 +329,19 @@ class _ReadPageState extends State<ReadPage> {
         return Scaffold(
           appBar: AppBar(
             title: Text('阅读'),
-            backgroundColor: Colors.blue.shade700,
+            backgroundColor: ThemeService.appBarColor,
+            foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
           ),
-          body: Center(
-            child: Text('未选择书籍'),
+          body: Container(
+            color: ThemeService.lightBackground,
+            child: Center(
+              child: Text(
+                '未选择书籍',
+                style: TextStyle(
+                  color: ThemeService.getTextColor(ThemeService.lightBackground),
+                ),
+              ),
+            ),
           ),
         );
       }
@@ -326,20 +365,21 @@ class _ReadPageState extends State<ReadPage> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: ThemeService.appBarColor,
+        foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
         actions: [
           IconButton(
-            icon: Icon(Icons.text_decrease),
+            icon: Icon(Icons.text_decrease, color: ThemeService.getTextColor(ThemeService.appBarColor)),
             onPressed: _decreaseFontSize,
             tooltip: '减小字体',
           ),
           IconButton(
-            icon: Icon(Icons.text_increase),
+            icon: Icon(Icons.text_increase, color: ThemeService.getTextColor(ThemeService.appBarColor)),
             onPressed: _increaseFontSize,
             tooltip: '增大字体',
           ),
           IconButton(
-            icon: Icon(_backgroundColor == Colors.white ? Icons.dark_mode : Icons.light_mode),
+            icon: Icon(_backgroundColor == ThemeService.lightBackground ? Icons.dark_mode : Icons.light_mode, color: ThemeService.getTextColor(ThemeService.appBarColor)),
             onPressed: _toggleTheme,
             tooltip: '切换主题',
           ),

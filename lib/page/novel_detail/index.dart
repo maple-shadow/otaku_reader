@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otaku_reader/services/api_service.dart';
+import 'package:otaku_reader/services/theme_service.dart';
 
 class NovelDetailPage extends StatefulWidget {
   NovelDetailPage({Key? key}) : super(key: key);
@@ -62,11 +63,11 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
   Widget _buildChapterItem(ChapterInfo chapter, int index) {
     return ListTile(
       leading: CircleAvatar(
-        backgroundColor: Colors.purple.shade100,
+        backgroundColor: ThemeService.cardColor,
         child: Text(
           '${chapter.chapterNumber}',
           style: TextStyle(
-            color: Colors.purple.shade800,
+            color: ThemeService.getTextColor(ThemeService.cardColor),
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -76,12 +77,13 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w500,
+          color: ThemeService.getTextColor(ThemeService.cardColor),
         ),
       ),
       trailing: Icon(
         Icons.arrow_forward_ios,
         size: 16,
-        color: Colors.grey,
+        color: ThemeService.getIconColor(ThemeService.cardColor),
       ),
       onTap: () => _navigateToChapter(chapter),
     );
@@ -96,7 +98,10 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
           SizedBox(height: 16),
           Text(
             '正在加载章节...',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 16, 
+              color: ThemeService.getTextColor(ThemeService.lightBackground),
+            ),
           ),
         ],
       ),
@@ -111,12 +116,15 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
           Icon(
             Icons.error_outline,
             size: 64,
-            color: Colors.red,
+            color: ThemeService.getIconColor(ThemeService.lightBackground),
           ),
           SizedBox(height: 16),
           Text(
             _errorMessage,
-            style: TextStyle(fontSize: 16, color: Colors.red),
+            style: TextStyle(
+              fontSize: 16, 
+              color: ThemeService.getTextColor(ThemeService.lightBackground),
+            ),
             textAlign: TextAlign.center,
           ),
           SizedBox(height: 16),
@@ -124,7 +132,8 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
             onPressed: _loadNovelDetail,
             child: Text('重试'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple.shade700,
+              backgroundColor: ThemeService.buttonColor,
+              foregroundColor: ThemeService.getTextColor(ThemeService.buttonColor),
             ),
           ),
         ],
@@ -140,8 +149,8 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.purple.shade50,
-            Colors.purple.shade100,
+            ThemeService.cardColor,
+            ThemeService.cardColor.withOpacity(0.8),
           ],
         ),
       ),
@@ -153,7 +162,7 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
               Icon(
                 Icons.menu_book,
                 size: 48,
-                color: Colors.purple.shade800,
+                color: ThemeService.getIconColor(ThemeService.cardColor),
               ),
               SizedBox(width: 16),
               Expanded(
@@ -165,7 +174,7 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.purple.shade900,
+                        color: ThemeService.getTextColor(ThemeService.cardColor),
                       ),
                     ),
                     SizedBox(height: 8),
@@ -173,7 +182,7 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
                       _novel!.description.isEmpty ? '暂无描述' : _novel!.description,
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.purple.shade700,
+                        color: ThemeService.getTextColor(ThemeService.cardColor),
                       ),
                     ),
                   ],
@@ -189,21 +198,21 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
                 '共${_novel!.totalChapters}章',
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.purple.shade600,
+                  color: ThemeService.getTextColor(ThemeService.cardColor),
                   fontWeight: FontWeight.w500,
                 ),
               ),
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.purple.shade300,
+                  color: ThemeService.primaryColor.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   '开始阅读',
                   style: TextStyle(
                     fontSize: 12,
-                    color: Colors.purple.shade900,
+                    color: ThemeService.getTextColor(ThemeService.primaryColor.withOpacity(0.3)),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -236,9 +245,13 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
       return Scaffold(
         appBar: AppBar(
           title: Text('小说详情'),
-          backgroundColor: Colors.purple.shade700,
+          backgroundColor: ThemeService.appBarColor,
+          foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
         ),
-        body: _buildLoading(),
+        body: Container(
+          color: ThemeService.lightBackground,
+          child: _buildLoading(),
+        ),
       );
     }
 
@@ -246,9 +259,13 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
       return Scaffold(
         appBar: AppBar(
           title: Text('小说详情'),
-          backgroundColor: Colors.purple.shade700,
+          backgroundColor: ThemeService.appBarColor,
+          foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
         ),
-        body: _buildError(),
+        body: Container(
+          color: ThemeService.lightBackground,
+          child: _buildError(),
+        ),
       );
     }
 
@@ -256,10 +273,14 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
       return Scaffold(
         appBar: AppBar(
           title: Text('小说详情'),
-          backgroundColor: Colors.purple.shade700,
+          backgroundColor: ThemeService.appBarColor,
+          foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
         ),
-        body: Center(
-          child: Text('小说数据不存在'),
+        body: Container(
+          color: ThemeService.lightBackground,
+          child: Center(
+            child: Text('小说数据不存在'),
+          ),
         ),
       );
     }
@@ -267,36 +288,40 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_novel!.title),
-        backgroundColor: Colors.purple.shade700,
+        backgroundColor: ThemeService.appBarColor,
+        foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
         elevation: 0,
       ),
-      body: Column(
-        children: [
-          _buildNovelHeader(),
-          SizedBox(height: 16),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.list,
-                  color: Colors.purple.shade700,
-                ),
-                SizedBox(width: 8),
-                Text(
-                  '章节列表',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple.shade700,
+      body: Container(
+        color: ThemeService.lightBackground,
+        child: Column(
+          children: [
+            _buildNovelHeader(),
+            SizedBox(height: 16),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.list,
+                    color: ThemeService.getIconColor(ThemeService.lightBackground),
                   ),
-                ),
-              ],
+                  SizedBox(width: 8),
+                  Text(
+                    '章节列表',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: ThemeService.getTextColor(ThemeService.lightBackground),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          _buildChapterList(),
-        ],
+            SizedBox(height: 8),
+            _buildChapterList(),
+          ],
+        ),
       ),
     );
   }

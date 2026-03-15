@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:otaku_reader/mod_books/mod_books.dart';
+import 'package:otaku_reader/services/theme_service.dart';
 
 class BookshelfPage extends StatefulWidget {
   BookshelfPage({Key? key}) : super(key: key);
@@ -46,8 +47,8 @@ class _BookshelfPageState extends State<BookshelfPage> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.blue.shade100,
-                Colors.blue.shade200,
+                ThemeService.cardColor,
+                ThemeService.cardColor.withOpacity(0.8),
               ],
             ),
             borderRadius: BorderRadius.circular(12),
@@ -58,7 +59,7 @@ class _BookshelfPageState extends State<BookshelfPage> {
               Icon(
                 Icons.book,
                 size: 40,
-                color: Colors.blue.shade800,
+                color: ThemeService.getIconColor(ThemeService.cardColor),
               ),
               SizedBox(height: 8),
               Text(
@@ -66,7 +67,7 @@ class _BookshelfPageState extends State<BookshelfPage> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue.shade900,
+                  color: ThemeService.getTextColor(ThemeService.cardColor),
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 2,
@@ -77,7 +78,7 @@ class _BookshelfPageState extends State<BookshelfPage> {
                 book.author,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.blue.shade700,
+                  color: ThemeService.getTextColor(ThemeService.cardColor),
                 ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
@@ -86,15 +87,15 @@ class _BookshelfPageState extends State<BookshelfPage> {
               SizedBox(height: 8),
               LinearProgressIndicator(
                 value: book.currentPage / book.totalPages,
-                backgroundColor: Colors.blue.shade300,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade800),
+                backgroundColor: ThemeService.primaryColor.withOpacity(0.3),
+                valueColor: AlwaysStoppedAnimation<Color>(ThemeService.primaryColor.withOpacity(0.8)),
               ),
               SizedBox(height: 4),
               Text(
                 '${book.currentPage}/${book.totalPages}',
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.blue.shade600,
+                  color: ThemeService.getTextColor(ThemeService.cardColor),
                 ),
               ),
             ],
@@ -107,20 +108,28 @@ class _BookshelfPageState extends State<BookshelfPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: ThemeService.appBarColor,
+        foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
+        title: Text('我的书架'),
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: GridView.builder(
-            gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-              mainAxisExtent: 200,
-              maxCrossAxisExtent: 150,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
+        child: Container(
+          color: ThemeService.lightBackground,
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: GridView.builder(
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                mainAxisExtent: 200,
+                maxCrossAxisExtent: 150,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+              ),
+              itemCount: _books.length,
+              itemBuilder: (context, index) {
+                return _buildBookCard(_books[index], index);
+              },
             ),
-            itemCount: _books.length,
-            itemBuilder: (context, index) {
-              return _buildBookCard(_books[index], index);
-            },
           ),
         ),
       ),

@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:otaku_reader/services/api_service.dart';
+import 'package:otaku_reader/services/theme_service.dart';
 
 class BookstorePage extends StatefulWidget {
   BookstorePage({Key? key}) : super(key: key);
@@ -59,8 +60,8 @@ class _BookstorePageState extends State<BookstorePage> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.purple.shade100,
-                Colors.purple.shade200,
+                ThemeService.cardColor,
+                ThemeService.cardColor.withOpacity(0.8),
               ],
             ),
             borderRadius: BorderRadius.circular(12),
@@ -73,7 +74,7 @@ class _BookstorePageState extends State<BookstorePage> {
                   Icon(
                     Icons.menu_book,
                     size: 40,
-                    color: Colors.purple.shade800,
+                    color: ThemeService.getIconColor(ThemeService.cardColor),
                   ),
                   SizedBox(width: 12),
                   Expanded(
@@ -85,7 +86,7 @@ class _BookstorePageState extends State<BookstorePage> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Colors.purple.shade900,
+                            color: ThemeService.getTextColor(ThemeService.cardColor),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -95,7 +96,7 @@ class _BookstorePageState extends State<BookstorePage> {
                           novel.description.isEmpty ? '暂无描述' : novel.description,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.purple.shade700,
+                            color: ThemeService.getTextColor(ThemeService.cardColor),
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
@@ -113,20 +114,20 @@ class _BookstorePageState extends State<BookstorePage> {
                     '共${novel.totalChapters}章',
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.purple.shade600,
+                      color: ThemeService.getTextColor(ThemeService.cardColor),
                     ),
                   ),
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.purple.shade300,
+                      color: ThemeService.primaryColor.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '在线阅读',
                       style: TextStyle(
                         fontSize: 10,
-                        color: Colors.purple.shade900,
+                        color: ThemeService.getTextColor(ThemeService.primaryColor.withOpacity(0.3)),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -223,7 +224,8 @@ class _BookstorePageState extends State<BookstorePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('在线书城'),
-        backgroundColor: Colors.purple.shade700,
+        backgroundColor: ThemeService.appBarColor,
+        foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
         elevation: 0,
         actions: [
           IconButton(
@@ -233,11 +235,14 @@ class _BookstorePageState extends State<BookstorePage> {
           ),
         ],
       ),
-      body: _isLoading
-          ? _buildLoading()
-          : _errorMessage.isNotEmpty
-              ? _buildError()
-              : _buildNovelList(),
+      body: Container(
+        color: ThemeService.lightBackground,
+        child: _isLoading
+            ? _buildLoading()
+            : _errorMessage.isNotEmpty
+                ? _buildError()
+                : _buildNovelList(),
+      ),
     );
   }
 }

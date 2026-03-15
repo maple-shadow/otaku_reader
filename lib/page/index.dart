@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:otaku_reader/page/bookshelf/index.dart' show BookshelfPage;
 import 'package:otaku_reader/page/bookstore/index.dart' show BookstorePage;
 import 'package:otaku_reader/page/mine/index.dart' show MinePage;
+import 'package:otaku_reader/services/theme_service.dart';
 
 class MainPageState extends StatefulWidget {
   MainPageState({Key? key}) : super(key: key);
@@ -17,20 +18,17 @@ class _MainPageStateState extends State<MainPageState> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Container(
-          padding: EdgeInsets.symmetric(horizontal: 16),
-          child: Text('Otaku Reader'),
-        ),
-      ),
       body: SafeArea(
-        child: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            BookshelfPage(),
-            BookstorePage(),
-            MinePage(),
-          ],
+        child: Container(
+          color: ThemeService.lightBackground,
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: [
+              BookshelfPage(),
+              BookstorePage(),
+              MinePage(),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
