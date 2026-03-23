@@ -3,7 +3,7 @@ import 'package:otaku_reader/mod_books/mod_books.dart';
 import 'package:otaku_reader/services/theme_service.dart';
 
 class BookshelfPage extends StatefulWidget {
-  BookshelfPage({Key? key}) : super(key: key);
+  const BookshelfPage({super.key});
 
   @override
   _BookshelfPageState createState() => _BookshelfPageState();

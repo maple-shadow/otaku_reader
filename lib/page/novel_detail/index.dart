@@ -3,7 +3,7 @@ import 'package:otaku_reader/services/api_service.dart';
 import 'package:otaku_reader/services/theme_service.dart';
 
 class NovelDetailPage extends StatefulWidget {
-  NovelDetailPage({Key? key}) : super(key: key);
+  const NovelDetailPage({super.key});
 
   @override
   _NovelDetailPageState createState() => _NovelDetailPageState();
@@ -130,11 +130,11 @@ class _NovelDetailPageState extends State<NovelDetailPage> {
           SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadNovelDetail,
-            child: Text('重试'),
             style: ElevatedButton.styleFrom(
               backgroundColor: ThemeService.buttonColor,
               foregroundColor: ThemeService.getTextColor(ThemeService.buttonColor),
             ),
+            child: Text('重试'),
           ),
         ],
       ),

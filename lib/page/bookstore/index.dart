@@ -4,7 +4,7 @@ import 'package:otaku_reader/services/api_service.dart';
 import 'package:otaku_reader/services/theme_service.dart';
 
 class BookstorePage extends StatefulWidget {
-  BookstorePage({Key? key}) : super(key: key);
+  const BookstorePage({super.key});
 
   @override
   _BookstorePageState createState() => _BookstorePageState();
@@ -176,10 +176,10 @@ class _BookstorePageState extends State<BookstorePage> {
           SizedBox(height: 16),
           ElevatedButton(
             onPressed: _loadNovels,
-            child: Text('重试'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.purple.shade700,
             ),
+            child: Text('重试'),
           ),
         ],
       ),

@@ -6,7 +6,7 @@ import 'package:otaku_reader/page/mine/index.dart' show MinePage;
 import 'package:otaku_reader/services/theme_service.dart';
 
 class MainPageState extends StatefulWidget {
-  MainPageState({Key? key}) : super(key: key);
+  const MainPageState({super.key});
 
   @override
   _MainPageStateState createState() => _MainPageStateState();

@@ -6,13 +6,13 @@ import 'package:otaku_reader/services/theme_service.dart';
 class ReadPage extends StatefulWidget {
   final Book? book;
 
-  const ReadPage({Key? key, this.book}) : super(key: key);
+  const ReadPage({super.key, this.book});
 
   @override
   _ReadPageState createState() => _ReadPageState();
 }
 
-class _ReadPageState extends State<ReadPage> {
+class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin {
   String _content = '';
   int _currentPage = 0;
   double _fontSize = 16.0;
@@ -24,11 +24,26 @@ class _ReadPageState extends State<ReadPage> {
   Chapter? _currentChapter;
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
+  late AnimationController _shimmerController;
+  late Animation<double> _shimmerAnimation;
+  bool _showControls = false;
+  bool _isAutoLoading = false;
+  List<Map<String, dynamic>> _chapterContents = [];
+  bool _hasMoreChapters = true;
+  double _savedScrollPosition = 0;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _shimmerController = AnimationController(
+      duration: Duration(milliseconds: 1500),
+      vsync: this,
+    )..repeat();
+    _shimmerAnimation = Tween<double>(begin: -2, end: 2).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOutSine),
+    );
+    // 延时加载，确保界面完全渲染后再开始数据加载
+    Future.delayed(Duration(milliseconds: 100), () {
       _loadContent();
     });
   }
@@ -36,7 +51,41 @@ class _ReadPageState extends State<ReadPage> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _shimmerController.dispose();
     super.dispose();
+  }
+
+  void _handleScrollNotification(ScrollNotification notification) {
+    if (_showControls) {
+      setState(() {
+        _showControls = false;
+      });
+    }
+    
+    if (_isAutoLoading || _isLoading || !_hasMoreChapters) return;
+    
+    if (notification is ScrollUpdateNotification) {
+      _savedScrollPosition = notification.metrics.pixels;
+    }
+    
+    if (notification is ScrollEndNotification) {
+      final metrics = notification.metrics;
+      final maxScroll = metrics.maxScrollExtent;
+      final currentScroll = metrics.pixels;
+      
+      _savedScrollPosition = currentScroll;
+      
+      if (maxScroll > 0 && currentScroll >= maxScroll - 50) {
+        _isAutoLoading = true;
+        _nextPage();
+      }
+    }
+  }
+
+  void _toggleControls() {
+    setState(() {
+      _showControls = !_showControls;
+    });
   }
 
   Future<void> _loadContent() async {
@@ -80,7 +129,7 @@ class _ReadPageState extends State<ReadPage> {
   }
 
   Future<void> _loadOnlineChapter(String novelId, String chapterId) async {
-    if (_isLoading) return; // 防止重复加载
+    if (_isLoading) return;
     
     setState(() {
       _isLoading = true;
@@ -88,21 +137,51 @@ class _ReadPageState extends State<ReadPage> {
     
     try {
       final chapter = await ApiService.getChapter(novelId, chapterId);
-      // 使用单个setState减少界面重绘
+      
       setState(() {
         _isLoading = false;
+        _isAutoLoading = false;
         _currentChapter = chapter;
-        _content = chapter.content;
+        
+        if (_chapterContents.isEmpty) {
+          _chapterContents.add({
+            'chapter': chapter,
+            'content': chapter.content,
+          });
+          _content = chapter.content;
+        } else {
+          _chapterContents.add({
+            'chapter': chapter,
+            'content': chapter.content,
+          });
+        }
+        
         _currentPage = chapter.chapterNumber - 1;
+        _hasMoreChapters = chapter.nextChapterId != null;
       });
-      // 延迟滚动操作，避免与setState冲突
-      Future.delayed(Duration(milliseconds: 50), () {
-        _scrollToTop();
-      });
+      
+      if (_chapterContents.length == 1) {
+        Future.delayed(Duration(milliseconds: 50), () {
+          _scrollToTop();
+        });
+      } else if (_chapterContents.length > 1) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients && _savedScrollPosition > 0) {
+            final maxScroll = _scrollController.position.maxScrollExtent;
+            final targetPosition = _savedScrollPosition;
+            if (targetPosition <= maxScroll) {
+              _scrollController.jumpTo(targetPosition);
+            }
+          }
+        });
+      }
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _content = '加载章节失败: $e';
+        _isAutoLoading = false;
+        if (_chapterContents.isEmpty) {
+          _content = '加载章节失败: $e';
+        }
       });
     }
   }
@@ -123,18 +202,15 @@ class _ReadPageState extends State<ReadPage> {
 
   void _nextPage() {
     if (_isOnlineMode) {
-      // 在线模式：跳转到下一章
-      if (_currentChapter?.nextChapterId != null) {
+      if (_currentChapter?.nextChapterId != null && _hasMoreChapters) {
         _loadOnlineChapter(_novelId!, _currentChapter!.nextChapterId!);
       }
     } else {
-      // 本地模式：翻页
       if (_currentPage < (widget.book?.totalPages ?? 1) - 1) {
         setState(() {
           _currentPage++;
           _updateReadingProgress();
         });
-        // 延迟滚动操作，避免与setState冲突
         Future.delayed(Duration(milliseconds: 50), () {
           _scrollToTop();
         });
@@ -189,50 +265,124 @@ class _ReadPageState extends State<ReadPage> {
     });
   }
 
-  Widget _buildChapterNavigation() {
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _previousPage,
-              icon: Icon(Icons.arrow_back),
-              label: Text('上一章'),
-              style: ElevatedButton.styleFrom(
-                 backgroundColor: ThemeService.buttonColor,
-                 foregroundColor: Colors.white,
-                 padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                 shape: RoundedRectangleBorder(
-                   borderRadius: BorderRadius.circular(8),
-                 ),
-               ),
-            ),
+  Widget _buildBottomMenu() {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      height: _showControls ? 80 : 0,
+      decoration: BoxDecoration(
+        color: _backgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, -2),
           ),
-          SizedBox(width: 16),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _nextPage,
-              icon: Icon(Icons.arrow_forward),
-              label: Text('下一章'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ThemeService.buttonColor,
-                foregroundColor: Colors.white,
-                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _previousPage,
+                icon: Icon(Icons.arrow_back),
+                label: Text('上一章'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeService.buttonColor,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+            SizedBox(width: 16),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _nextPage,
+                icon: Icon(Icons.arrow_forward),
+                label: Text('下一章'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ThemeService.buttonColor,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
+  Widget _buildTopBar(String pageTitle) {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      height: _showControls ? kToolbarHeight + MediaQuery.of(context).padding.top : 0,
+      decoration: BoxDecoration(
+        color: ThemeService.appBarColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 10,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: _showControls ? SafeArea(
+        bottom: false,
+        child: Container(
+          height: kToolbarHeight,
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              IconButton(
+                icon: Icon(Icons.arrow_back, color: ThemeService.getTextColor(ThemeService.appBarColor)),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              Expanded(
+                child: Text(
+                  pageTitle,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: ThemeService.getTextColor(ThemeService.appBarColor),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.text_decrease, color: ThemeService.getTextColor(ThemeService.appBarColor)),
+                onPressed: _decreaseFontSize,
+                tooltip: '减小字体',
+              ),
+              IconButton(
+                icon: Icon(Icons.text_increase, color: ThemeService.getTextColor(ThemeService.appBarColor)),
+                onPressed: _increaseFontSize,
+                tooltip: '增大字体',
+              ),
+              IconButton(
+                icon: Icon(_backgroundColor == ThemeService.lightBackground ? Icons.dark_mode : Icons.light_mode, color: ThemeService.getTextColor(ThemeService.appBarColor)),
+                onPressed: _toggleTheme,
+                tooltip: '切换主题',
+              ),
+            ],
+          ),
+        ),
+      ) : SizedBox.shrink(),
+    );
+  }
+
   Widget _buildContentBody() {
-    if (_content.isEmpty) {
+    if (_content.isEmpty && _chapterContents.isEmpty) {
       return Center(
         child: CircularProgressIndicator(),
       );
@@ -241,116 +391,202 @@ class _ReadPageState extends State<ReadPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_isOnlineMode && _currentChapter != null)
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _currentChapter!.title,
-                style: TextStyle(
-                  fontSize: _fontSize + 4,
-                  fontWeight: FontWeight.bold,
-                  color: _textColor,
-                  height: 1.6,
+        for (int i = 0; i < _chapterContents.length; i++) ...[
+          if (_isOnlineMode)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _chapterContents[i]['chapter'].title,
+                  style: TextStyle(
+                    fontSize: _fontSize + 4,
+                    fontWeight: FontWeight.bold,
+                    color: _textColor,
+                    height: 1.6,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 20),
-              Divider(color: _textColor.withOpacity(0.3)),
-              SizedBox(height: 20),
-            ],
+                SizedBox(height: 20),
+                Divider(color: _textColor.withOpacity(0.3)),
+                SizedBox(height: 20),
+              ],
+            ),
+          Text(
+            _chapterContents[i]['content'],
+            style: TextStyle(
+              fontSize: _fontSize,
+              color: _textColor,
+              height: 1.6,
+            ),
+            textAlign: TextAlign.justify,
           ),
-        Text(
-          _content,
-          style: TextStyle(
-            fontSize: _fontSize,
-            color: _textColor,
-            height: 1.6,
+          if (i < _chapterContents.length - 1) ...[
+            SizedBox(height: 20),
+            Divider(color: _textColor.withOpacity(0.3)),
+            SizedBox(height: 20),
+          ],
+        ],
+        if (_chapterContents.isNotEmpty) ...[
+          SizedBox(height: 20),
+          Divider(color: _textColor.withOpacity(0.3)),
+          SizedBox(height: 10),
+          Text(
+            _isOnlineMode
+                ? '已加载 ${_chapterContents.length} 章${_hasMoreChapters ? '，继续滑动加载更多...' : '（已加载全部）'}'
+                : '第 ${_currentPage + 1} 页 / 共 ${widget.book?.totalPages ?? 1} 页',
+            style: TextStyle(
+              fontSize: 14,
+              color: _textColor.withOpacity(0.7),
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.justify,
-        ),
-        SizedBox(height: 20),
-        Divider(color: _textColor.withOpacity(0.3)),
-        SizedBox(height: 10),
-        Text(
-          _isOnlineMode
-              ? '第 ${_currentChapter?.chapterNumber ?? 1} 章 / 共 ${_currentChapter?.totalChapters ?? 1} 章'
-              : '第 ${_currentPage + 1} 页 / 共 ${widget.book?.totalPages ?? 1} 页',
-          style: TextStyle(
-            fontSize: 14,
-            color: _textColor.withOpacity(0.7),
-          ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 20),
-        _buildChapterNavigation(),
+          SizedBox(height: 20),
+        ],
       ],
     );
   }
 
+  Widget _buildSkeleton() {
+    return AnimatedBuilder(
+      animation: _shimmerAnimation,
+      builder: (context, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_isOnlineMode)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildShimmerItem(
+                    height: (_fontSize + 4) * 1.6,
+                    width: double.infinity,
+                  ),
+                  SizedBox(height: 20),
+                  Divider(color: _textColor.withOpacity(0.3)),
+                  SizedBox(height: 20),
+                ],
+              ),
+            for (int i = 0; i < 10; i++)
+              Padding(
+                padding: EdgeInsets.only(bottom: 12),
+                child: _buildShimmerItem(
+                  height: _fontSize * 1.6,
+                  width: i % 3 == 0 ? double.infinity * 0.9 : double.infinity * 0.7,
+                ),
+              ),
+            SizedBox(height: 20),
+            Divider(color: _textColor.withOpacity(0.3)),
+            SizedBox(height: 10),
+            _buildShimmerItem(
+              height: 14,
+              width: 150,
+            ),
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: _buildShimmerItem(
+                    height: 48,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: _buildShimmerItem(
+                    height: 48,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildShimmerItem({
+    required double height,
+    double? width,
+    BorderRadius? borderRadius,
+  }) {
+    return Container(
+      height: height,
+      width: width ?? double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            _textColor.withOpacity(0.1),
+            _textColor.withOpacity(0.2),
+            _textColor.withOpacity(0.1),
+          ],
+          stops: [
+            0.0,
+            _shimmerAnimation.value,
+            1.0,
+          ],
+        ),
+        borderRadius: borderRadius ?? BorderRadius.circular(4),
+      ),
+    );
+  }
+
   Widget _buildContent() {
-    return SingleChildScrollView(
-      controller: _scrollController,
-      padding: EdgeInsets.all(24),
-      child: _buildContentBody(),
+    Widget content;
+    
+    if (_isLoading && _chapterContents.isEmpty) {
+      content = _buildSkeleton();
+    } else if (_content.isEmpty && _chapterContents.isEmpty) {
+      final routeArgs = ModalRoute.of(context)?.settings.arguments;
+      if (_isOnlineMode) {
+        content = _buildSkeleton();
+      } else {
+        final book = widget.book ?? (routeArgs is Book ? routeArgs : null);
+        if (book == null) {
+          content = Center(
+            child: Text(
+              '未选择书籍',
+              style: TextStyle(
+                color: _textColor,
+              ),
+            ),
+          );
+        } else {
+          content = _buildContentBody();
+        }
+      }
+    } else {
+      content = _buildContentBody();
+    }
+    
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        _handleScrollNotification(notification);
+        return false;
+      },
+      child: SingleChildScrollView(
+        controller: _scrollController,
+        padding: EdgeInsets.all(24),
+        child: content,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 检查是否为在线模式
-    final routeArgs = ModalRoute.of(context)?.settings.arguments;
-    if (routeArgs is Map && routeArgs['isOnline'] == true) {
-      // 在线模式：检查是否有章节数据
-      if (_currentChapter == null && _content.isEmpty) {
-        return Scaffold(
-          appBar: AppBar(
-            title: Text('阅读'),
-            backgroundColor: ThemeService.appBarColor,
-            foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
-          ),
-          body: Container(
-            color: ThemeService.lightBackground,
-            child: Center(
-              child: Text(
-                '正在加载章节...',
-                style: TextStyle(
-                  color: ThemeService.getTextColor(ThemeService.lightBackground),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-    } else {
-      // 本地模式：检查是否有书籍数据
-      final book = widget.book ?? (routeArgs is Book ? routeArgs : null);
-      if (book == null) {
-        return Scaffold(
-          appBar: AppBar(
-            title: Text('阅读'),
-            backgroundColor: ThemeService.appBarColor,
-            foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
-          ),
-          body: Container(
-            color: ThemeService.lightBackground,
-            child: Center(
-              child: Text(
-                '未选择书籍',
-                style: TextStyle(
-                  color: ThemeService.getTextColor(ThemeService.lightBackground),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-    }
-
     String pageTitle = '阅读';
-    if (_isOnlineMode && _currentChapter != null) {
-      pageTitle = _currentChapter!.title;
+    
+    if (_isOnlineMode) {
+      if (_chapterContents.isNotEmpty) {
+        pageTitle = _chapterContents.last['chapter'].title;
+      } else if (_currentChapter != null) {
+        pageTitle = _currentChapter!.title;
+      }
     } else {
+      final routeArgs = ModalRoute.of(context)?.settings.arguments;
       final book = widget.book ?? (routeArgs is Book ? routeArgs : null);
       if (book != null) {
         pageTitle = book.title;
@@ -358,37 +594,30 @@ class _ReadPageState extends State<ReadPage> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          pageTitle,
-          style: TextStyle(fontSize: 16),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        backgroundColor: ThemeService.appBarColor,
-        foregroundColor: ThemeService.getTextColor(ThemeService.appBarColor),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.text_decrease, color: ThemeService.getTextColor(ThemeService.appBarColor)),
-            onPressed: _decreaseFontSize,
-            tooltip: '减小字体',
-          ),
-          IconButton(
-            icon: Icon(Icons.text_increase, color: ThemeService.getTextColor(ThemeService.appBarColor)),
-            onPressed: _increaseFontSize,
-            tooltip: '增大字体',
-          ),
-          IconButton(
-            icon: Icon(_backgroundColor == ThemeService.lightBackground ? Icons.dark_mode : Icons.light_mode, color: ThemeService.getTextColor(ThemeService.appBarColor)),
-            onPressed: _toggleTheme,
-            tooltip: '切换主题',
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Container(
-          color: _backgroundColor,
-          child: _buildContent(),
+      body: GestureDetector(
+        onTap: _toggleControls,
+        child: Stack(
+          children: [
+            SafeArea(
+              bottom: false,
+              child: Container(
+                color: _backgroundColor,
+                child: _buildContent(),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: _buildTopBar(pageTitle),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildBottomMenu(),
+            ),
+          ],
         ),
       ),
     );

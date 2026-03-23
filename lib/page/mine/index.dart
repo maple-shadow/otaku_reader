@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:otaku_reader/services/theme_service.dart';
 
 class MinePage extends StatefulWidget {
-  MinePage({Key? key}) : super(key: key);
+  const MinePage({super.key});
 
   @override
   _MinePageState createState() => _MinePageState();
@@ -41,11 +41,11 @@ class _MinePageState extends State<MinePage> {
             SizedBox(height: 20),
             ElevatedButton(
               onPressed: _resetToDefault,
-              child: Text('重置为默认'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: ThemeService.buttonColor,
                 foregroundColor: Colors.white,
               ),
+              child: Text('重置为默认'),
             ),
           ],
         ),
