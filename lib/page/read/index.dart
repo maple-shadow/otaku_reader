@@ -13,6 +13,7 @@ class ReadPage extends StatefulWidget {
 }
 
 class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin {
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String _content = '';
   int _currentPage = 0;
   double _fontSize = 16.0;
@@ -22,6 +23,7 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
   String? _novelId;
   String? _chapterId;
   Chapter? _currentChapter;
+  List<ChapterInfo> _chapterList = [];
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
   late AnimationController _shimmerController;
@@ -31,6 +33,7 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
   List<Map<String, dynamic>> _chapterContents = [];
   bool _hasMoreChapters = true;
   double _savedScrollPosition = 0;
+  final List<GlobalKey> _chapterKeys = [];
 
   @override
   void initState() {
@@ -77,7 +80,16 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
       
       if (maxScroll > 0 && currentScroll >= maxScroll - 50) {
         _isAutoLoading = true;
-        _nextPage();
+        if (_isOnlineMode) {
+          if (_chapterContents.isNotEmpty) {
+            final lastChapter = _chapterContents.last['chapter'];
+            if (lastChapter.nextChapterId != null && _hasMoreChapters) {
+              _loadOnlineChapter(_novelId!, lastChapter.nextChapterId!, scrollToNewChapter: false);
+            }
+          } else if (_currentChapter?.nextChapterId != null && _hasMoreChapters) {
+            _loadOnlineChapter(_novelId!, _currentChapter!.nextChapterId!, scrollToNewChapter: false);
+          }
+        }
       }
     }
   }
@@ -86,6 +98,37 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
     setState(() {
       _showControls = !_showControls;
     });
+  }
+
+  void _toggleDrawer() {
+    if (_scaffoldKey.currentState != null) {
+      if (_scaffoldKey.currentState!.isDrawerOpen) {
+        Navigator.of(context).pop();
+      } else {
+        _scaffoldKey.currentState!.openDrawer();
+      }
+    }
+  }
+
+  void _jumpToChapter(int chapterIndex) {
+    if (chapterIndex < 0 || chapterIndex >= _chapterList.length) return;
+    
+    final chapterInfo = _chapterList[chapterIndex];
+    
+    // 清空当前内容
+    setState(() {
+      _chapterContents.clear();
+      _chapterKeys.clear();
+      _hasMoreChapters = true;
+    });
+    
+    // 加载新章节
+    _loadOnlineChapter(_novelId!, chapterInfo.id, scrollToNewChapter: true);
+    
+    // 关闭侧边栏
+    if (_scaffoldKey.currentState != null && _scaffoldKey.currentState!.isDrawerOpen) {
+      Navigator.of(context).pop();
+    }
   }
 
   Future<void> _loadContent() async {
@@ -98,6 +141,16 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
       _chapterId = routeArgs['chapterId'];
       
       if (_novelId != null && _chapterId != null) {
+        // 先加载小说信息获取章节列表
+        try {
+          final novel = await ApiService.getNovel(_novelId!);
+          setState(() {
+            _chapterList = novel.chapters;
+          });
+        } catch (e) {
+          print('Failed to load chapter list: $e');
+        }
+        // 再加载章节内容
         await _loadOnlineChapter(_novelId!, _chapterId!);
       }
     } else {
@@ -128,7 +181,7 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
     }
   }
 
-  Future<void> _loadOnlineChapter(String novelId, String chapterId) async {
+  Future<void> _loadOnlineChapter(String novelId, String chapterId, {bool scrollToNewChapter = false}) async {
     if (_isLoading) return;
     
     setState(() {
@@ -148,12 +201,14 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
             'chapter': chapter,
             'content': chapter.content,
           });
+          _chapterKeys.add(GlobalKey());
           _content = chapter.content;
         } else {
           _chapterContents.add({
             'chapter': chapter,
             'content': chapter.content,
           });
+          _chapterKeys.add(GlobalKey());
         }
         
         _currentPage = chapter.chapterNumber - 1;
@@ -163,6 +218,10 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
       if (_chapterContents.length == 1) {
         Future.delayed(Duration(milliseconds: 50), () {
           _scrollToTop();
+        });
+      } else if (scrollToNewChapter) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToChapter(_chapterKeys.length - 1);
         });
       } else if (_chapterContents.length > 1) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -200,10 +259,30 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
     });
   }
 
+  void _scrollToChapter(int chapterIndex) {
+    if (chapterIndex < 0 || chapterIndex >= _chapterKeys.length) return;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final key = _chapterKeys[chapterIndex];
+      if (key.currentContext != null) {
+        Scrollable.ensureVisible(
+          key.currentContext!,
+          alignment: 0.0,
+          duration: Duration(milliseconds: 300),
+        );
+      }
+    });
+  }
+
   void _nextPage() {
     if (_isOnlineMode) {
-      if (_currentChapter?.nextChapterId != null && _hasMoreChapters) {
-        _loadOnlineChapter(_novelId!, _currentChapter!.nextChapterId!);
+      if (_chapterContents.isNotEmpty) {
+        final lastChapter = _chapterContents.last['chapter'];
+        if (lastChapter.nextChapterId != null && _hasMoreChapters) {
+          _loadOnlineChapter(_novelId!, lastChapter.nextChapterId!, scrollToNewChapter: true);
+        }
+      } else if (_currentChapter?.nextChapterId != null && _hasMoreChapters) {
+        _loadOnlineChapter(_novelId!, _currentChapter!.nextChapterId!, scrollToNewChapter: true);
       }
     } else {
       if (_currentPage < (widget.book?.totalPages ?? 1) - 1) {
@@ -220,18 +299,24 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
 
   void _previousPage() {
     if (_isOnlineMode) {
-      // 在线模式：跳转到上一章
-      if (_currentChapter?.prevChapterId != null) {
-        _loadOnlineChapter(_novelId!, _currentChapter!.prevChapterId!);
+      if (_chapterContents.length > 1) {
+        setState(() {
+          _chapterContents.removeLast();
+          _chapterKeys.removeLast();
+          _hasMoreChapters = true;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToChapter(_chapterKeys.length - 1);
+        });
+      } else if (_currentChapter?.prevChapterId != null) {
+        _loadOnlineChapter(_novelId!, _currentChapter!.prevChapterId!, scrollToNewChapter: true);
       }
     } else {
-      // 本地模式：翻页
       if (_currentPage > 0) {
         setState(() {
           _currentPage--;
           _updateReadingProgress();
         });
-        // 延迟滚动操作，避免与setState冲突
         Future.delayed(Duration(milliseconds: 50), () {
           _scrollToTop();
         });
@@ -285,35 +370,46 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _previousPage,
-                icon: Icon(Icons.arrow_back),
-                label: Text('上一章'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeService.buttonColor,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
+            IconButton(
+              icon: Icon(Icons.menu, color: ThemeService.getTextColor(ThemeService.appBarColor)),
+              onPressed: _toggleDrawer,
+              tooltip: '目录',
             ),
-            SizedBox(width: 16),
             Expanded(
-              child: ElevatedButton.icon(
-                onPressed: _nextPage,
-                icon: Icon(Icons.arrow_forward),
-                label: Text('下一章'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ThemeService.buttonColor,
-                  foregroundColor: Colors.white,
-                  padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _previousPage,
+                      icon: Icon(Icons.arrow_back),
+                      label: Text('上一章'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ThemeService.buttonColor,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: _nextPage,
+                      icon: Icon(Icons.arrow_forward),
+                      label: Text('下一章'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ThemeService.buttonColor,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -393,23 +489,26 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
       children: [
         for (int i = 0; i < _chapterContents.length; i++) ...[
           if (_isOnlineMode)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _chapterContents[i]['chapter'].title,
-                  style: TextStyle(
-                    fontSize: _fontSize + 4,
-                    fontWeight: FontWeight.bold,
-                    color: _textColor,
-                    height: 1.6,
+            Container(
+              key: i < _chapterKeys.length ? _chapterKeys[i] : null,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _chapterContents[i]['chapter'].title,
+                    style: TextStyle(
+                      fontSize: _fontSize + 4,
+                      fontWeight: FontWeight.bold,
+                      color: _textColor,
+                      height: 1.6,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 20),
-                Divider(color: _textColor.withOpacity(0.3)),
-                SizedBox(height: 20),
-              ],
+                  SizedBox(height: 20),
+                  Divider(color: _textColor.withOpacity(0.3)),
+                  SizedBox(height: 20),
+                ],
+              ),
             ),
           Text(
             _chapterContents[i]['content'],
@@ -594,6 +693,8 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
     }
 
     return Scaffold(
+      key: _scaffoldKey,
+      drawer: _isOnlineMode ? _buildDrawer() : null,
       body: GestureDetector(
         onTap: _toggleControls,
         child: Stack(
@@ -616,6 +717,100 @@ class _ReadPageState extends State<ReadPage> with SingleTickerProviderStateMixin
               right: 0,
               bottom: 0,
               child: _buildBottomMenu(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawer() {
+    return Drawer(
+      child: Container(
+        color: _backgroundColor,
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: ThemeService.appBarColor,
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.close, color: ThemeService.getTextColor(ThemeService.appBarColor)),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      '目录',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: ThemeService.getTextColor(ThemeService.appBarColor),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _chapterList.isEmpty
+                  ? Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : ListView.builder(
+                      itemCount: _chapterList.length,
+                      itemBuilder: (context, index) {
+                        if (index >= _chapterList.length) {
+                          return SizedBox.shrink();
+                        }
+                        final chapter = _chapterList[index];
+                        String chapterTitle = '';
+                        String chapterId = '';
+                        bool isCurrentChapter = false;
+                        
+                        try {
+                          chapterTitle = chapter.title ?? '';
+                          chapterId = chapter.id ?? '';
+                        } catch (e) {
+                          chapterTitle = '章节 ${index + 1}';
+                          chapterId = '';
+                        }
+                        
+                        if (_chapterContents.isNotEmpty &&
+                            _chapterContents.last.containsKey('chapter') &&
+                            _chapterContents.last['chapter'] != null) {
+                          try {
+                            isCurrentChapter = _chapterContents.last['chapter'].id == chapterId;
+                          } catch (e) {
+                            isCurrentChapter = false;
+                          }
+                        }
+                        
+                        return ListTile(
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          title: Text(
+                            chapterTitle,
+                            style: TextStyle(
+                              color: _textColor,
+                              fontWeight: isCurrentChapter ? FontWeight.bold : FontWeight.normal,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          onTap: () => _jumpToChapter(index),
+                          tileColor: isCurrentChapter
+                              ? _textColor.withOpacity(0.1)
+                              : null,
+                        );
+                      },
+                    ),
             ),
           ],
         ),
